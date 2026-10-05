@@ -60,6 +60,7 @@ TRACE only works as a standard if it is genuinely neutral. Integrations are list
 | [DecisionAssure](integrations/decisionassure/) | DecisionAssure (a1k7) | trace | community |
 | [Docker Sandbox Kit](integrations/docker-sandbox-kit/) | agentrust-io | trace | community |
 | [EPI Recorder](integrations/epilabs-epi-recorder/) | EPI Labs | trace, wcm | verified |
+| [EvidenceBound Core](integrations/evidencebound-core/) | EvidenceBound | trace | community |
 | [Google ADK](integrations/google-adk/) | agentrust-io | trace | verified |
 | [LangChain](integrations/langchain/) | agentrust-io | trace | verified |
 | [SOVP](integrations/litzki-systems-sovp/) | Litzki Systems | trace | verified |

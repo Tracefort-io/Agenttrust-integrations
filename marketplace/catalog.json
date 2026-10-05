@@ -1,6 +1,6 @@
 {
   "catalog_version": 1,
-  "count": 44,
+  "count": 45,
   "integrations": [
     {
       "name": "Claude Code",
@@ -499,6 +499,29 @@
         "seal",
         "log-import",
         ".epi"
+      ]
+    },
+    {
+      "name": "EvidenceBound Core",
+      "package_name": "EvidenceBound Core",
+      "vendor": "EvidenceBound",
+      "description": "Re-verifies explicit current EvidenceBound state and signed-receipt binding, then emits a software-only TRACE record only for current ALLOW.",
+      "path": "integrations/evidencebound-core",
+      "url": "https://github.com/agentrust-io/integrations/tree/main/integrations/evidencebound-core",
+      "homepage": "https://evidencebound.org",
+      "repository": "https://github.com/evidencebound/evidencebound-core",
+      "tier": "community",
+      "stack": [
+        "TRACE"
+      ],
+      "category": "Evidence & receipts",
+      "mark": "EB",
+      "featured": null,
+      "keywords": [
+        "evidence",
+        "provenance",
+        "authority",
+        "receipts"
       ]
     },
     {

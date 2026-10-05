@@ -1,0 +1,26 @@
+name: EvidenceBound Core
+vendor: EvidenceBound
+integrates_with:
+  - trace
+description: >-
+  Re-verifies explicit current EvidenceBound state and signed-receipt binding, then emits a software-only TRACE record only for current ALLOW.
+maintainer:
+  github: Evalbound
+repository: https://github.com/evidencebound/evidencebound-core
+homepage: https://evidencebound.org
+license: Apache-2.0
+tier: community
+marketplace:
+  category: Evidence & receipts
+  mark: EB
+  keywords:
+    - evidence
+    - provenance
+    - authority
+    - receipts
+trace_roles:
+  - record-producer
+trace_conformance_level: 0
+tested_against:
+  agentrust-trace: "0.11.0"
+  agentrust-trace-tests: "0.6.2"

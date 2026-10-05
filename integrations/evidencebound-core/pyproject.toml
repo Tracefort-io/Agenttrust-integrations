@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "evidencebound-agentrust-integration"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "evidencebound-core[crypto]==0.4.0",
+  "agentrust-trace==0.11.0",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest==9.1.1",
+  "agentrust-trace-tests==0.6.2",
+]
+
+[tool.setuptools]
+py-modules = ["evidencebound_trace"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
