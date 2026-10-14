@@ -61,8 +61,23 @@ earlier observation in that lineage. A later observation cannot overwrite an
 earlier boundary outcome. Unsupported mutation names are rejected before the
 adapter runs. Response verification points to the actual
 main-lineage execution observation, including timeout and no-dispatch outcomes.
-Retry observations record authorization from the shared synthetic inputs in
-their own lineage; they do not replace the main path's evidence.
+Retry observations apply authorization, version admission, revocation, replay
+and execution-evidence checks to the shared synthetic inputs in their own
+lineage. Their receipt and admission observations precede execution. A retry
+after a main-lineage timeout models a separately observed synthetic attempt;
+its result does not replace the main path's evidence. No live retry is run.
+`retry-dispatch` and `retry-receipt` represent scripted synthetic transport
+observations, including when authorization is contradicted; neither establishes
+authorized delivery or permission to execute. Consumers must inspect the
+lineage's authorization, admission and guarded execution outcomes. A known
+rejection (authorization, version admission, revocation or replay) produces
+`execution=contradicted` even if execution evidence is also missing. Missing
+evidence produces `unavailable` only when these guards allow execution. The
+explicit missing-evidence mutation cannot override a known guard refusal.
+The synthetic execution outcome evaluates the permitted-execution claim;
+`contradicted` does not prove that no physical side effects occurred. Retry
+attempts are independently scripted even when the main input has `dispatch=False`;
+their observations do not establish real-world dispatch.
 
 The public result must never contain protected payloads, secrets, device IDs or
 low-entropy digests of protected material.

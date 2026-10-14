@@ -58,6 +58,24 @@ class DeterministicWorkflowAdapter:
             "authorization-check",
         )
 
+        def admission_ok():
+            return (scenario.mutation == "disable_version_gate"
+                    or _meets_version_floor(i.get("software_version", "1.0.0")))
+
+        def execution_outcome(admitted):
+            revoked = (i.get("revoked_before_use", False)
+                       and scenario.mutation != "disable_revocation_gate")
+            replayed = (i.get("replay", False)
+                        and scenario.mutation != "disable_replay_gate")
+            # Known guard refusal takes precedence over missing execution evidence.
+            if not auth_ok or not admitted or replayed or revoked:
+                return Outcome.CONTRADICTED
+            if i.get("missing_execution_evidence", False):
+                return (Outcome.ESTABLISHED
+                        if scenario.mutation == "assume_missing_execution_success"
+                        else Outcome.UNAVAILABLE)
+            return Outcome.ESTABLISHED
+
         if i.get("dispatch", True):
             emit(Boundary.DELIVERY, Outcome.ESTABLISHED, "dispatch", "authorization-check")
             if i.get("timeout_after_dispatch", False):
@@ -66,37 +84,16 @@ class DeterministicWorkflowAdapter:
                 emit(Boundary.EXECUTION, Outcome.UNAVAILABLE, "execution-unavailable", "admission-unavailable")
             else:
                 emit(Boundary.RECEIPT, Outcome.ESTABLISHED, "peer-receipt", "dispatch")
-                admitted = _meets_version_floor(i.get("software_version", "1.0.0"))
-                if scenario.mutation == "disable_version_gate":
-                    admitted = True
+                admitted = admission_ok()
                 emit(
                     Boundary.ADMISSION,
                     Outcome.ESTABLISHED if admitted else Outcome.CONTRADICTED,
                     "version-admission",
                     "peer-receipt",
                 )
-                revoked = i.get("revoked_before_use", False)
-                if scenario.mutation == "disable_revocation_gate":
-                    revoked = False
-                replayed = i.get("replay", False)
-                if scenario.mutation == "disable_replay_gate":
-                    replayed = False
-                missing_execution_evidence = i.get("missing_execution_evidence", False)
-                executed = auth_ok and admitted and not replayed and not revoked
-                if missing_execution_evidence:
-                    execution_outcome = Outcome.UNAVAILABLE
-                else:
-                    execution_outcome = (
-                        Outcome.ESTABLISHED if executed else Outcome.CONTRADICTED
-                    )
-                if (
-                    scenario.mutation == "assume_missing_execution_success"
-                    and missing_execution_evidence
-                ):
-                    execution_outcome = Outcome.ESTABLISHED
                 emit(
                     Boundary.EXECUTION,
-                    execution_outcome,
+                    execution_outcome(admitted),
                     "execution-check",
                     "version-admission",
                 )
@@ -114,6 +111,7 @@ class DeterministicWorkflowAdapter:
                 "authorization-check",
                 lineage="retry-1",
             )
+            # Scripted transport observations do not assert authorized delivery.
             emit(
                 Boundary.DELIVERY,
                 Outcome.ESTABLISHED,
@@ -122,10 +120,25 @@ class DeterministicWorkflowAdapter:
                 lineage="retry-1",
             )
             emit(
-                Boundary.EXECUTION,
+                Boundary.RECEIPT,
                 Outcome.ESTABLISHED,
-                "retry-execution",
+                "retry-receipt",
                 "retry-dispatch",
+                lineage="retry-1",
+            )
+            retry_admitted = admission_ok()
+            emit(
+                Boundary.ADMISSION,
+                Outcome.ESTABLISHED if retry_admitted else Outcome.CONTRADICTED,
+                "retry-admission",
+                "retry-receipt",
+                lineage="retry-1",
+            )
+            emit(
+                Boundary.EXECUTION,
+                execution_outcome(retry_admitted),
+                "retry-execution",
+                "retry-admission",
                 lineage="retry-1",
             )
 

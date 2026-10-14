@@ -201,6 +201,93 @@ class HarnessTests(unittest.TestCase):
             )
         )
 
+    def test_retry_execution_reuses_guards_and_mutation_controls(self):
+        cases = [
+            ({"workload": "workload-X"}, "disable_authorization_gate", "contradicted"),
+            ({"key_id": "key-X"}, "disable_authorization_gate", "contradicted"),
+            ({"policy_version": "p0"}, "disable_authorization_gate", "contradicted"),
+            ({"software_version": "0.9.0"}, "disable_version_gate", "contradicted"),
+            ({"revoked_before_use": True}, "disable_revocation_gate", "contradicted"),
+            ({"replay": True}, "disable_replay_gate", "contradicted"),
+            ({"missing_execution_evidence": True}, "assume_missing_execution_success", "unavailable"),
+        ]
+
+        def retry_execution(result):
+            return next(o for o in result.observations
+                        if o.lineage == "retry-1" and o.boundary == Boundary.EXECUTION)
+
+        for changes, mutation, expected in cases:
+            with self.subTest(inputs=changes):
+                good = self.runner.run(scenario(inputs={**scenario().inputs, "retry_lineage": True}))
+                self.assertEqual(retry_execution(good).outcome, Outcome.ESTABLISHED)
+                inputs = {**scenario().inputs, **changes, "retry_lineage": True}
+                bad = self.runner.run(scenario(inputs=inputs))
+                self.assertEqual(retry_execution(bad).outcome.value, expected)
+                self.assertEqual(bad.boundary_outcomes["execution"], expected)
+                weakened = self.runner.run(scenario(inputs=inputs, mutation=mutation))
+                self.assertEqual(retry_execution(weakened).outcome, Outcome.ESTABLISHED)
+                execution = retry_execution(bad)
+                admission = next(o for o in bad.observations
+                                 if o.lineage == "retry-1" and o.source == execution.caused_by)
+                self.assertEqual(admission.boundary, Boundary.ADMISSION)
+
+    def test_synthetic_retry_transport_does_not_permit_invalid_authorization(self):
+        for changes in ({"workload": "workload-X"}, {"key_id": "key-X"},
+                        {"policy_version": "p0"}):
+            with self.subTest(inputs=changes):
+                result = self.runner.run(scenario(inputs={
+                    **scenario().inputs, **changes, "retry_lineage": True,
+                }))
+                retry = {o.source: o for o in result.observations if o.lineage == "retry-1"}
+                self.assertEqual(retry["retry-dispatch"].outcome, Outcome.ESTABLISHED)
+                self.assertEqual(retry["retry-receipt"].outcome, Outcome.ESTABLISHED)
+                self.assertEqual(retry["authorization-check"].outcome, Outcome.CONTRADICTED)
+                self.assertEqual(retry["retry-execution"].outcome, Outcome.CONTRADICTED)
+                self.assertEqual(result.status, "refused")
+                self.assertEqual(result.boundary_outcomes["release/disclosure"], "contradicted")
+
+    def test_missing_execution_evidence_cannot_mask_known_guard_refusal(self):
+        cases = ({"workload": "workload-X"}, {"key_id": "key-X"},
+                 {"policy_version": "p0"}, {"software_version": "0.9.0"},
+                 {"revoked_before_use": True}, {"replay": True})
+        for changes in cases:
+            for mutation in (None, "assume_missing_execution_success"):
+                with self.subTest(inputs=changes, mutation=mutation):
+                    result = self.runner.run(scenario(inputs={
+                        **scenario().inputs, **changes, "retry_lineage": True,
+                        "missing_execution_evidence": True,
+                    }, mutation=mutation))
+                    executions = [o for o in result.observations
+                                  if o.boundary == Boundary.EXECUTION]
+                    self.assertEqual({o.lineage for o in executions}, {"main", "retry-1"})
+                    self.assertTrue(all(o.outcome == Outcome.CONTRADICTED for o in executions))
+                    self.assertEqual(result.boundary_outcomes["execution"], "contradicted")
+                    self.assertEqual(result.status, "refused")
+
+    def test_retry_rejection_dominates_missing_evidence(self):
+        cases = (
+            ({"workload": "workload-X"}, "disable_authorization_gate"),
+            ({"key_id": "key-X"}, "disable_authorization_gate"),
+            ({"policy_version": "p0"}, "disable_authorization_gate"),
+            ({"software_version": "0.9.0"}, "disable_version_gate"),
+            ({"revoked_before_use": True}, "disable_revocation_gate"),
+            ({"replay": True}, "disable_replay_gate"),
+        )
+        for invalid, mutation in cases:
+            with self.subTest(invalid=invalid):
+                inputs = {**scenario().inputs, **invalid,
+                          "retry_lineage": True, "missing_execution_evidence": True}
+                result = self.runner.run(scenario(inputs=inputs))
+                retry = next(o for o in result.observations
+                             if o.lineage == "retry-1" and o.boundary == Boundary.EXECUTION)
+                self.assertEqual(retry.outcome, Outcome.CONTRADICTED)
+                self.assertEqual(result.status, "refused")
+                weakened = self.runner.run(scenario(inputs=inputs, mutation=mutation))
+                retry_weakened = next(o for o in weakened.observations
+                                      if o.lineage == "retry-1" and o.boundary == Boundary.EXECUTION)
+                self.assertEqual(retry_weakened.outcome, Outcome.UNAVAILABLE)
+                self.assertEqual(weakened.status, "unknown")
+
     def test_response_parent_is_actual_main_execution(self):
         for overrides, expected_source in (
             ({}, "execution-check"),
